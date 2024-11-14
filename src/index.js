@@ -1,31 +1,29 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-
+// index.js
+const express = require("express");
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
-
 const port = process.env.PORT || 4000;
 
-io.on('connection', (socket) => {
-    console.log('New client connected');
+app.use(express.json()); // Middleware para analizar JSON en el cuerpo de la solicitud
 
-    socket.on('requestRide', (data) => {
-        console.log('Ride requested:', data);
+app.post("/webhook", (req, res) => {
+  const { start, destination, passengerName, phoneNumber } = req.body;
 
-        io.emit('newRideRequest', data);
-    });
+  console.log("Webhook received data:");
+  console.log(
+    `Start: Latitude: ${start.latitude}, Longitude: ${start.longitude}`
+  );
+  console.log(
+    `Destination: Latitude: ${destination.latitude}, Longitude: ${destination.longitude}`
+  );
+  console.log(`Passenger: ${passengerName}`);
+  console.log(`Phone: ${phoneNumber}`);
 
-    socket.on('acceptRide', (data) => {
-        console.log('Ride accepted:', data);
+  // Puedes agregar lógica adicional aquí para procesar los datos
+  // Ejemplo: almacenar en la base de datos o emitir eventos a otros servicios
 
-        io.to(data.passengerId).emit('rideAccepted', data);
-    });
-
-    socket.on('disconnect', () => {
-        console.log('Client disconnected');
-    });
+  res.status(200).send({ status: "Success", message: "Data received" });
 });
 
-server.listen(port, () => console.log(`Server running on port ${port}`));
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
