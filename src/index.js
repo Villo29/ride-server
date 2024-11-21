@@ -43,39 +43,58 @@ io.on("connection", (socket) => {
   });
 
   // Listener para recibir aceptación del conductor
-  socket.on("acceptRide", (data) => {
-    console.log("Ride accepted:", data);
+  io.on("connection", (socket) => {
+    console.log("New client connected");
 
-    const passengerId = data.passengerId;
+    // Guardar los viajes pendientes en un mapa
+    const pendingRides = new Map();
 
-    // Verificar si el pasajero existe en los viajes pendientes
-    if (pendingRides.has(passengerId)) {
-      const rideData = pendingRides.get(passengerId);
+    // Listener para recibir solicitudes de viaje
+    socket.on("requestRide", (data) => {
+      console.log("Ride requested:", data);
 
-      // Completar la información con datos del conductor
-      const acceptedData = {
-        ...rideData,
-        driverInfo: {
-          name: data.driverInfo.name,
-          phone: data.driverInfo.phone,
-        },
-        driverLocation: data.driverLocation,
-      };
+      // Guardar el pasajero y sus datos en el mapa de viajes pendientes
+      pendingRides.set(data.passengerId, data);
 
-      // Emitir la confirmación de aceptación al pasajero
-      io.to(passengerId).emit("rideAccepted", acceptedData);
+      // Emitir la solicitud de viaje a los conductores conectados
+      io.emit("newRideRequest", data);
+    });
 
-      // Eliminar el viaje de los pendientes
-      pendingRides.delete(passengerId);
+    // Listener para recibir aceptación del conductor
+    socket.on("acceptRide", (data) => {
+      console.log("Ride accepted:", data);
 
-      console.log("RideAccepted sent to passenger:", passengerId);
-    } else {
-      console.log("Passenger not found for passengerId:", passengerId);
-    }
-  });
+      const passengerId = data.passengerId;
 
-  socket.on("disconnect", () => {
-    console.log("Client disconnected");
+      // Verificar si el pasajero existe en los viajes pendientes
+      if (pendingRides.has(passengerId)) {
+        const rideData = pendingRides.get(passengerId);
+
+        // Completar la información con datos del conductor
+        const acceptedData = {
+          ...rideData,
+          driverInfo: {
+            name: data.driverInfo.name,
+            phone: data.driverInfo.phone,
+          },
+          driverLocation: data.driverLocation,
+        };
+
+        // Emitir la confirmación de aceptación al pasajero
+        io.to(passengerId).emit("rideAccepted", acceptedData);
+
+        // Eliminar el viaje de los pendientes
+        pendingRides.delete(passengerId);
+
+        console.log("RideAccepted sent to passenger:", passengerId);
+      } else {
+        console.log("Passenger not found for passengerId:", passengerId);
+      }
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Client disconnected");
+    });
   });
 });
 
