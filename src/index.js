@@ -25,11 +25,9 @@ app.post("/webhook", (req, res) => {
   res.status(200).send({ status: "Success", message: "Data received" });
 });
 
-// Socket.io connection event
 io.on("connection", (socket) => {
   console.log("New client connected");
 
-  // Guardar los viajes pendientes en un mapa
   const pendingRides = new Map();
 
   // Listener para recibir solicitudes de viaje
@@ -75,11 +73,40 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Listener para iniciar el viaje
+  socket.on("startRide", (data) => {
+    console.log("Ride started:", data);
+
+    const rideStartedData = {
+      passengerId: data.passengerId,
+      driverId: data.driverId,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Emitir evento de inicio de viaje al pasajero
+    io.to(data.passengerId).emit("rideStarted", rideStartedData);
+    console.log("RideStarted sent to passenger:", data.passengerId);
+  });
+
+  // Listener para finalizar el viaje
+  socket.on("endRide", (data) => {
+    console.log("Ride ended:", data);
+
+    const rideEndedData = {
+      passengerId: data.passengerId,
+      driverId: data.driverId,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Emitir evento de finalización de viaje al pasajero
+    io.to(data.passengerId).emit("rideEnded", rideEndedData);
+    console.log("RideEnded sent to passenger:", data.passengerId);
+  });
+
   socket.on("disconnect", () => {
     console.log("Client disconnected");
   });
 });
-
 
 server.listen(port, () => {
   console.log(`Server running on port ${port}`);
