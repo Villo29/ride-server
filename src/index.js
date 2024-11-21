@@ -28,6 +28,7 @@ app.post("/webhook", (req, res) => {
 io.on("connection", (socket) => {
   console.log("New client connected");
 
+  // Guardar los viajes pendientes en un mapa
   const pendingRides = new Map();
 
   // Listener para recibir solicitudes de viaje
@@ -77,7 +78,6 @@ io.on("connection", (socket) => {
     console.log("Client disconnected");
   });
 });
-
 
 server.listen(port, () => {
   console.log(`Server running on port ${port}`);
