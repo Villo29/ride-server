@@ -64,6 +64,16 @@ io.on("connection", (socket) => {
     }
   });
 
+
+  socket.on("tripEnded", (data) => {
+    console.log("Trip ended:", data);
+
+    // Emitir al pasajero correspondiente
+    io.to(data.passengerId).emit("tripEnded", data);
+
+    console.log("TripEnded enviado al pasajero:", data.passengerId);
+  });
+
   socket.on("disconnect", () => {
     console.log("Client disconnected");
   });
