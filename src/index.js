@@ -64,9 +64,15 @@ io.on("connection", (socket) => {
     }
   });
 
-
   socket.on("tripEnded", (data) => {
-    console.log("Trip ended:", data);
+    console.log("Trip ended recibido:", data);
+
+    if (!data.passengerId) {
+      console.error("Error: passengerId no está presente en los datos:", data);
+      return;
+    }
+
+    console.log("Emitiendo tripEnded a passengerId:", data.passengerId);
 
     // Emitir al pasajero correspondiente
     io.to(data.passengerId).emit("tripEnded", data);
