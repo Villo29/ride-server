@@ -18,7 +18,10 @@ const pool = new Pool({
   host: process.env.PG_HOST, // Cambia si tu base de datos no está en localhost
   database: process.env.PG_DB, // Reemplaza con el nombre de tu base de datos
   password: process.env.PG_PASSWORD, // Reemplaza con tu contraseña
-  port: 5432, // Puerto predeterminado de PostgreSQL
+  port: process.env.PG_Port, // Puerto predeterminado de PostgreSQL
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 
 const pendingRides = new Map();
