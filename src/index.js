@@ -11,7 +11,7 @@ const port = process.env.PORT || 4000;
 
 app.use(express.json());
 
-const passengerSockets = new Map(); // Mapa para asociar phoneNumber -> socket.id
+const passengerSockets = new Map(); // Mapa para asociar passengerId -> socket.id
 
 // Verificar conexión a la base de datos al iniciar
 pool.connect((err, client, release) => {
@@ -24,12 +24,12 @@ pool.connect((err, client, release) => {
 });
 
 io.on("connection", (socket) => {
-  console.log("New client connected:", socket.id);
+  console.log("Nuevo cliente conectado:", socket.id);
 
   // Escuchar cuando un pasajero se registra
-  socket.on("registerPassenger", (phoneNumber) => {
-    passengerSockets.set(phoneNumber, socket.id);
-    console.log(`Pasajero registrado: ${phoneNumber}, Socket ID: ${socket.id}`);
+  socket.on("registerPassenger", (passengerId) => {
+    passengerSockets.set(passengerId, socket.id);
+    console.log(`Pasajero registrado: ${passengerId}, Socket ID: ${socket.id}`);
   });
 
   // Evento para manejar solicitud de viaje
@@ -44,7 +44,7 @@ io.on("connection", (socket) => {
       await pool.query(
         `INSERT INTO rides (
           ride_id, 
-          passenger_phone, 
+          passenger_id, 
           start_latitude, 
           start_longitude, 
           destination_latitude, 
@@ -52,7 +52,7 @@ io.on("connection", (socket) => {
         ) VALUES ($1, $2, $3, $4, $5, $6)`,
         [
           rideData.rideId,
-          rideData.phoneNumber,
+          rideData.passengerId,
           rideData.start.latitude,
           rideData.start.longitude,
           rideData.destination.latitude,
@@ -103,13 +103,13 @@ io.on("connection", (socket) => {
     };
 
     // Notificar al pasajero sobre la aceptación
-    const passengerSocketId = passengerSockets.get(data.passengerPhone);
+    const passengerSocketId = passengerSockets.get(data.passengerId);
     if (passengerSocketId) {
       io.to(passengerSocketId).emit("rideAccepted", acceptedData);
-      console.log(`Notificación enviada al pasajero: ${data.passengerPhone}`);
+      console.log(`Notificación enviada al pasajero: ${data.passengerId}`);
     } else {
       console.log(
-        `No se pudo notificar al pasajero: ${data.passengerPhone}, socket no encontrado.`
+        `No se pudo notificar al pasajero: ${data.passengerId}, socket no encontrado.`
       );
     }
   });
@@ -139,21 +139,27 @@ io.on("connection", (socket) => {
     }
 
     // Notificar al pasajero que el viaje terminó
-    const passengerSocketId = passengerSockets.get(data.passengerPhone);
+    const passengerSocketId = passengerSockets.get(data.passengerId);
     if (passengerSocketId) {
       io.to(passengerSocketId).emit("tripEnded", data);
-      console.log(`Notificación de fin de viaje enviada al pasajero: ${data.passengerPhone}`);
+      console.log(
+        `Notificación de fin de viaje enviada al pasajero: ${data.passengerId}`
+      );
+    } else {
+      console.log(
+        `No se pudo notificar al pasajero: ${data.passengerId}, socket no encontrado.`
+      );
     }
   });
 
   // Evento para manejar desconexión
   socket.on("disconnect", () => {
-    console.log("Client disconnected:", socket.id);
+    console.log("Cliente desconectado:", socket.id);
     // Eliminar al pasajero del mapa si se desconecta
-    for (const [phoneNumber, socketId] of passengerSockets.entries()) {
+    for (const [passengerId, socketId] of passengerSockets.entries()) {
       if (socketId === socket.id) {
-        passengerSockets.delete(phoneNumber);
-        console.log(`Pasajero desconectado: ${phoneNumber}`);
+        passengerSockets.delete(passengerId);
+        console.log(`Pasajero desconectado: ${passengerId}`);
         break;
       }
     }
@@ -161,5 +167,5 @@ io.on("connection", (socket) => {
 });
 
 server.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`Servidor ejecutándose en el puerto ${port}`);
 });
