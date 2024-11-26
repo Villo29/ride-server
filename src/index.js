@@ -1,171 +1,91 @@
+//jandos
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
-const { v4: uuidv4 } = require("uuid");
-const pool = require("./db");
+const { v4: uuidv4 } = require("uuid"); // Importar uuid
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
-const port = process.env.PORT || 4000;
+const port = process.env.PORT || 4000; 
 
 app.use(express.json());
 
-const passengerSockets = new Map(); // Mapa para asociar passengerId -> socket.id
-
-// Verificar conexión a la base de datos al iniciar
-pool.connect((err, client, release) => {
-  if (err) {
-    console.error("Error conectando a la base de datos:", err);
-  } else {
-    console.log("Conexión exitosa a la base de datos PostgreSQL.");
-    release();
-  }
-});
+const pendingRides = new Map(); // Almacena viajes pendientes
 
 io.on("connection", (socket) => {
-  console.log("Nuevo cliente conectado:", socket.id);
+  console.log("New client connected");
 
-  // Escuchar cuando un pasajero se registra
-  socket.on("registerPassenger", (passengerId) => {
-    passengerSockets.set(passengerId, socket.id);
-    console.log(`Pasajero registrado: ${passengerId}, Socket ID: ${socket.id}`);
-  });
-
-  // Evento para manejar solicitud de viaje
-  socket.on("requestRide", async (data) => {
+  // Listener para recibir solicitudes de viaje
+  socket.on("requestRide", (data) => {
     console.log("Ride requested:", data);
 
-    const rideId = uuidv4(); // Generar un ID único para el ride
-    const rideData = { ...data, rideId }; // Agregar el rideId a los datos
+    // Generar un rideId único
+    const rideId = uuidv4();
 
-    try {
-      // Guardar en la base de datos
-      await pool.query(
-        `INSERT INTO rides (
-          ride_id, 
-          passenger_id, 
-          start_latitude, 
-          start_longitude, 
-          destination_latitude, 
-          destination_longitude
-        ) VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          rideData.rideId,
-          rideData.passengerId,
-          rideData.start.latitude,
-          rideData.start.longitude,
-          rideData.destination.latitude,
-          rideData.destination.longitude,
-        ]
-      );
-      console.log("Ride guardado correctamente en la base de datos");
-      socket.emit("dbStatus", {
-        message: "El viaje fue guardado correctamente en la base de datos.",
-      });
-    } catch (err) {
-      console.error("Error guardando ride:", err);
-      socket.emit("dbStatus", {
-        message: "Hubo un error guardando el viaje en la base de datos.",
-        error: err.message,
-      });
-    }
+    // Guardar el viaje con el rideId
+    const rideData = {
+      ...data,
+      rideId, // Añadir el rideId generado
+    };
+    pendingRides.set(rideId, rideData);
 
     // Emitir la solicitud de viaje a todos los conductores conectados
     io.emit("newRideRequest", rideData);
+
+    console.log("Nuevo viaje creado:", rideData);
   });
 
-  // Evento para manejar aceptación de viaje por el conductor
-  socket.on("acceptRide", async (data) => {
+  // Listener para recibir aceptación del conductor
+  socket.on("acceptRide", (data) => {
     console.log("Ride accepted:", data);
 
-    try {
-      // Actualizar datos del conductor en la base de datos
-      await pool.query(
-        `UPDATE rides 
-        SET driver_name = $1, 
-            driver_matricula = $2 
-        WHERE ride_id = $3`,
-        [data.driverInfo.name, data.driverInfo.matricula, data.rideId]
-      );
-      console.log("Datos del conductor actualizados en la base de datos");
-    } catch (err) {
-      console.error("Error actualizando datos del conductor:", err);
-      socket.emit("dbStatus", {
-        message: "Hubo un error actualizando los datos del conductor.",
-        error: err.message,
-      });
-    }
+    // Verificar si el rideId existe en los viajes pendientes
+    const ride = pendingRides.get(data.rideId);
 
-    const acceptedData = {
-      rideId: data.rideId,
-      driverInfo: data.driverInfo,
-    };
+    if (ride) {
+      const passengerId = ride.passengerId;
 
-    // Notificar al pasajero sobre la aceptación
-    const passengerSocketId = passengerSockets.get(data.passengerId);
-    if (passengerSocketId) {
-      io.to(passengerSocketId).emit("rideAccepted", acceptedData);
-      console.log(`Notificación enviada al pasajero: ${data.passengerId}`);
+      // Combinar datos del viaje con datos del conductor
+      const acceptedData = {
+        ...ride,
+        driverInfo: data.driverInfo,
+        driverLocation: data.driverLocation,
+      };
+
+      // Emitir al pasajero correspondiente
+      io.to(passengerId).emit("rideAccepted", acceptedData);
+
+      // Eliminar el viaje de los pendientes
+      pendingRides.delete(data.rideId);
+
+      console.log("RideAccepted enviado al pasajero:", passengerId);
     } else {
-      console.log(
-        `No se pudo notificar al pasajero: ${data.passengerId}, socket no encontrado.`
-      );
+      console.log("RideId no encontrado:", data.rideId);
     }
   });
 
-  // Evento para manejar finalización de viaje
-  socket.on("tripEnded", async (data) => {
+  socket.on("tripEnded", (data) => {
     console.log("Trip ended recibido:", data);
 
-    try {
-      // Actualizar la hora de finalización en la base de datos
-      await pool.query(
-        `UPDATE rides 
-        SET created_at = NOW() 
-        WHERE ride_id = $1`,
-        [data.rideId]
-      );
-      console.log("Viaje finalizado guardado en la base de datos");
-      socket.emit("dbStatus", {
-        message: "El viaje fue finalizado correctamente en la base de datos.",
-      });
-    } catch (err) {
-      console.error("Error actualizando trip ended:", err);
-      socket.emit("dbStatus", {
-        message: "Hubo un error finalizando el viaje en la base de datos.",
-        error: err.message,
-      });
+    if (!data.passengerId) {
+      console.error("Error: passengerId no está presente en los datos:", data);
+      return;
     }
 
-    // Notificar al pasajero que el viaje terminó
-    const passengerSocketId = passengerSockets.get(data.passengerId);
-    if (passengerSocketId) {
-      io.to(passengerSocketId).emit("tripEnded", data);
-      console.log(
-        `Notificación de fin de viaje enviada al pasajero: ${data.passengerId}`
-      );
-    } else {
-      console.log(
-        `No se pudo notificar al pasajero: ${data.passengerId}, socket no encontrado.`
-      );
-    }
+    console.log("Emitiendo tripEnded a passengerId:", data.passengerId);
+
+    // Emitir al pasajero correspondiente
+    io.to(data.passengerId).emit("tripEnded", data);
+
+    console.log("TripEnded enviado al pasajero:", data.passengerId);
   });
 
-  // Evento para manejar desconexión
   socket.on("disconnect", () => {
-    console.log("Cliente desconectado:", socket.id);
-    // Eliminar al pasajero del mapa si se desconecta
-    for (const [passengerId, socketId] of passengerSockets.entries()) {
-      if (socketId === socket.id) {
-        passengerSockets.delete(passengerId);
-        console.log(`Pasajero desconectado: ${passengerId}`);
-        break;
-      }
-    }
+    console.log("Client disconnected");
   });
 });
 
 server.listen(port, () => {
-  console.log(`Servidor ejecutándose en el puerto ${port}`);
+  console.log(`Server running on port ${port}`);
 });
