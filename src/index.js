@@ -117,6 +117,13 @@ io.on("connection", (socket) => {
 
     console.log("TripEnded enviado al pasajero:", data.passengerId);
 
+    // Mapear correctamente los datos recibidos
+    const startLatitude = data.start?.latitude || null;
+    const startLongitude = data.start?.longitude || null;
+    const destinationLatitude = data.destination?.latitude || null;
+    const destinationLongitude = data.destination?.longitude || null;
+    const passengerPhone = data.phoneNumber || null;
+
     // Guardar datos adicionales en la base de datos
     try {
       const query = `
@@ -133,13 +140,13 @@ io.on("connection", (socket) => {
       `;
 
       const values = [
-        data.driverName, // Nombre del conductor
-        data.driverMatricula, // Matrícula del conductor
-        data.passengerPhone, // Teléfono del pasajero
-        data.startLatitude, // Latitud de inicio
-        data.startLongitude, // Longitud de inicio
-        data.destinationLatitude, // Latitud de destino
-        data.destinationLongitude, // Longitud de destino
+        data.driverName || "Desconocido", // Nombre del conductor
+        data.driverMatricula || "N/A", // Matrícula del conductor
+        passengerPhone, // Teléfono del pasajero
+        startLatitude, // Latitud de inicio
+        startLongitude, // Longitud de inicio
+        destinationLatitude, // Latitud de destino
+        destinationLongitude, // Longitud de destino
         data.rideId, // ID del viaje
       ];
 
