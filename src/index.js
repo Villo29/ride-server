@@ -1,64 +1,97 @@
+require("dotenv").config(); 
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
-const { v4: uuidv4 } = require("uuid"); // Importar uuid
+const { v4: uuidv4 } = require("uuid");
+const { Pool } = require("pg"); // Importar pg
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
-const port = process.env.PORT || 4000; 
+const port = process.env.PORT || 4000;
 
 app.use(express.json());
 
-const pendingRides = new Map(); // Almacena viajes pendientes
+// Configuración de la base de datos PostgreSQL
+const pool = new Pool({
+  user: process.env.PG_USER, // Reemplaza con tu usuario
+  host: process.env.PG_HOST, // Cambia si tu base de datos no está en localhost
+  database: process.env.PG_DB, // Reemplaza con el nombre de tu base de datos
+  password: process.env.PG_PASSWORD, // Reemplaza con tu contraseña
+  port: 5432, // Puerto predeterminado de PostgreSQL
+});
+
+const pendingRides = new Map();
 
 io.on("connection", (socket) => {
   console.log("New client connected");
 
-  // Listener para recibir solicitudes de viaje
   socket.on("requestRide", (data) => {
     console.log("Ride requested:", data);
 
-    // Generar un rideId único
     const rideId = uuidv4();
 
-    // Guardar el viaje con el rideId
     const rideData = {
       ...data,
-      rideId, // Añadir el rideId generado
+      rideId,
     };
     pendingRides.set(rideId, rideData);
 
-    // Emitir la solicitud de viaje a todos los conductores conectados
     io.emit("newRideRequest", rideData);
 
     console.log("Nuevo viaje creado:", rideData);
   });
 
-  // Listener para recibir aceptación del conductor
-  socket.on("acceptRide", (data) => {
+  socket.on("acceptRide", async (data) => {
     console.log("Ride accepted:", data);
 
-    // Verificar si el rideId existe en los viajes pendientes
     const ride = pendingRides.get(data.rideId);
 
     if (ride) {
       const passengerId = ride.passengerId;
 
-      // Combinar datos del viaje con datos del conductor
       const acceptedData = {
         ...ride,
         driverInfo: data.driverInfo,
         driverLocation: data.driverLocation,
       };
 
-      // Emitir al pasajero correspondiente
       io.to(passengerId).emit("rideAccepted", acceptedData);
-
-      // Eliminar el viaje de los pendientes
       pendingRides.delete(data.rideId);
 
       console.log("RideAccepted enviado al pasajero:", passengerId);
+
+      // Guardar los datos en la base de datos
+      try {
+        const query = `
+          INSERT INTO rides (
+            ride_id,
+            start_latitude,
+            start_longitude,
+            destination_latitude,
+            destination_longitude,
+            driver_name,
+            driver_matricula,
+            created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `;
+
+        const values = [
+          data.rideId,
+          ride.startLatitude,
+          ride.startLongitude,
+          ride.destinationLatitude,
+          ride.destinationLongitude,
+          data.driverInfo.name,
+          data.driverInfo.matricula,
+          new Date().toISOString(), // Fecha de creación
+        ];
+
+        await pool.query(query, values);
+        console.log("Datos del viaje guardados en la base de datos.");
+      } catch (error) {
+        console.error("Error al guardar en la base de datos:", error.message);
+      }
     } else {
       console.log("RideId no encontrado:", data.rideId);
     }
@@ -74,7 +107,6 @@ io.on("connection", (socket) => {
 
     console.log("Emitiendo tripEnded a passengerId:", data.passengerId);
 
-    // Emitir al pasajero correspondiente
     io.to(data.passengerId).emit("tripEnded", data);
 
     console.log("TripEnded enviado al pasajero:", data.passengerId);
