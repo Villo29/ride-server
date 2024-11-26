@@ -5,7 +5,10 @@ const pool = new Pool({
   host: process.env.PG_HOST || "",
   database: process.env.PG_DB || "",
   password: process.env.PG_PASSWORD || "",
-  port: Number(process.env.PG_PORT) || 5432,
+  port: Number(process.env.PG_Port) || 5432,
+  ssl: {
+    rejectUnauthorized: false,
+},
 });
 
 console.log("Conexión a la base de datos exitosa");

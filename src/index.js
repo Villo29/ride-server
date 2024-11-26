@@ -14,7 +14,7 @@ app.use(express.json());
 // Verificar conexión a la base de datos al iniciar
 pool.connect((err, client, release) => {
   if (err) {
-    console.error("Error conectando a la base de datos:", err.stack);
+    console.error("Error conectando a la base de datos:", err);
   } else {
     console.log("Conexión exitosa a la base de datos PostgreSQL.");
     release();
