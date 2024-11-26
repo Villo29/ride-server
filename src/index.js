@@ -135,17 +135,17 @@ io.on("connection", (socket) => {
     // Guardar datos adicionales en la base de datos
     try {
       const query = `
-        UPDATE rides
-        SET
-          driver_name = $1,
-          driver_matricula = $2,
-          passenger_phone = $3,
-          start_latitude = $4,
-          start_longitude = $5,
-          destination_latitude = $6,
-          destination_longitude = $7
-        WHERE ride_id = $8
-      `;
+      UPDATE rides
+      SET
+        driver_name = $1,
+        driver_matricula = $2,
+        passenger_phone = $3,
+        start_latitude = $4,
+        start_longitude = $5,
+        destination_latitude = $6,
+        destination_longitude = $7
+      WHERE ride_id = $8
+    `;
 
       const values = [
         data.driverName || "Desconocido", // Nombre del conductor
