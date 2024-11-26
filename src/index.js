@@ -1,8 +1,8 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
-const { v4: uuidv4 } = require("uuid"); // Para generar UUIDs únicos
-const pool = require("./db"); // Importa la conexión a PostgreSQL
+const { v4: uuidv4 } = require("uuid");
+const pool = require("./db");
 
 const app = express();
 const server = http.createServer(app);
@@ -10,6 +10,8 @@ const io = new Server(server);
 const port = process.env.PORT || 4000;
 
 app.use(express.json());
+
+const passengerSockets = new Map(); // Mapa para asociar phoneNumber -> socket.id
 
 // Verificar conexión a la base de datos al iniciar
 pool.connect((err, client, release) => {
@@ -22,7 +24,13 @@ pool.connect((err, client, release) => {
 });
 
 io.on("connection", (socket) => {
-  console.log("New client connected");
+  console.log("New client connected:", socket.id);
+
+  // Escuchar cuando un pasajero se registra
+  socket.on("registerPassenger", (phoneNumber) => {
+    passengerSockets.set(phoneNumber, socket.id);
+    console.log(`Pasajero registrado: ${phoneNumber}, Socket ID: ${socket.id}`);
+  });
 
   // Evento para manejar solicitud de viaje
   socket.on("requestRide", async (data) => {
@@ -81,9 +89,6 @@ io.on("connection", (socket) => {
         [data.driverInfo.name, data.driverInfo.matricula, data.rideId]
       );
       console.log("Datos del conductor actualizados en la base de datos");
-      socket.emit("dbStatus", {
-        message: "Datos del conductor actualizados correctamente en la base de datos.",
-      });
     } catch (err) {
       console.error("Error actualizando datos del conductor:", err);
       socket.emit("dbStatus", {
@@ -98,7 +103,15 @@ io.on("connection", (socket) => {
     };
 
     // Notificar al pasajero sobre la aceptación
-    io.emit("rideAccepted", acceptedData);
+    const passengerSocketId = passengerSockets.get(data.passengerPhone);
+    if (passengerSocketId) {
+      io.to(passengerSocketId).emit("rideAccepted", acceptedData);
+      console.log(`Notificación enviada al pasajero: ${data.passengerPhone}`);
+    } else {
+      console.log(
+        `No se pudo notificar al pasajero: ${data.passengerPhone}, socket no encontrado.`
+      );
+    }
   });
 
   // Evento para manejar finalización de viaje
@@ -126,12 +139,24 @@ io.on("connection", (socket) => {
     }
 
     // Notificar al pasajero que el viaje terminó
-    io.emit("tripEnded", data);
+    const passengerSocketId = passengerSockets.get(data.passengerPhone);
+    if (passengerSocketId) {
+      io.to(passengerSocketId).emit("tripEnded", data);
+      console.log(`Notificación de fin de viaje enviada al pasajero: ${data.passengerPhone}`);
+    }
   });
 
   // Evento para manejar desconexión
   socket.on("disconnect", () => {
-    console.log("Client disconnected");
+    console.log("Client disconnected:", socket.id);
+    // Eliminar al pasajero del mapa si se desconecta
+    for (const [phoneNumber, socketId] of passengerSockets.entries()) {
+      if (socketId === socket.id) {
+        passengerSockets.delete(phoneNumber);
+        console.log(`Pasajero desconectado: ${phoneNumber}`);
+        break;
+      }
+    }
   });
 });
 
