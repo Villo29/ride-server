@@ -117,12 +117,20 @@ io.on("connection", (socket) => {
 
     console.log("TripEnded enviado al pasajero:", data.passengerId);
 
-    // Mapear correctamente los datos recibidos
-    const startLatitude = data.start?.latitude || null;
-    const startLongitude = data.start?.longitude || null;
-    const destinationLatitude = data.destination?.latitude || null;
-    const destinationLongitude = data.destination?.longitude || null;
-    const passengerPhone = data.phoneNumber || null;
+    // Obtener datos del viaje original de pendingRides
+    const ride = pendingRides.get(data.rideId);
+
+    if (!ride) {
+      console.error(`No se encontró el ride con ID: ${data.rideId}`);
+      return;
+    }
+
+    // Extraer los datos relevantes de pendingRides
+    const passengerPhone = ride.phoneNumber || null;
+    const startLatitude = ride.start?.latitude || null;
+    const startLongitude = ride.start?.longitude || null;
+    const destinationLatitude = ride.destination?.latitude || null;
+    const destinationLongitude = ride.destination?.longitude || null;
 
     // Guardar datos adicionales en la base de datos
     try {
