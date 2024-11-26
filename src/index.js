@@ -104,29 +104,49 @@ io.on("connection", (socket) => {
 
   socket.on("tripEnded", async (data) => {
     console.log("Trip ended recibido:", data);
+
     if (!data.passengerId) {
       console.error("Error: passengerId no está presente en los datos:", data);
       return;
     }
+
     console.log("Emitiendo tripEnded a passengerId:", data.passengerId);
+
     // Emitir al pasajero correspondiente
     io.to(data.passengerId).emit("tripEnded", data);
+
     console.log("TripEnded enviado al pasajero:", data.passengerId);
-    // Guardar `driver_name` y `driver_matricula` en la base de datos
+
+    // Guardar datos adicionales en la base de datos
     try {
       const query = `
         UPDATE rides
-        SET driver_name = $1, driver_matricula = $2
-        WHERE ride_id = $3
+        SET
+          driver_name = $1,
+          driver_matricula = $2,
+          passenger_phone = $3,
+          start_latitude = $4,
+          start_longitude = $5,
+          destination_latitude = $6,
+          destination_longitude = $7
+        WHERE ride_id = $8
       `;
+
       const values = [
         data.driverName, // Nombre del conductor
         data.driverMatricula, // Matrícula del conductor
+        data.passengerPhone, // Teléfono del pasajero
+        data.startLatitude, // Latitud de inicio
+        data.startLongitude, // Longitud de inicio
+        data.destinationLatitude, // Latitud de destino
+        data.destinationLongitude, // Longitud de destino
         data.rideId, // ID del viaje
       ];
+
       const result = await pool.query(query, values);
+
       if (result.rowCount > 0) {
-        console.log("Datos del conductor actualizados en la base de datos.");
+        console.log("Datos actualizados en la base de datos.");
       } else {
         console.log("No se encontró el ride_id para actualizar.");
       }
