@@ -75,8 +75,9 @@ io.on("connection", (socket) => {
             destination_longitude,
             driver_name,
             driver_matricula,
+            passenger_phone,
             created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, ,$8, $9)
         `;
 
         const values = [
@@ -87,6 +88,7 @@ io.on("connection", (socket) => {
           ride.destinationLongitude,
           data.driverInfo.name,
           data.driverInfo.matricula,
+          data.passenger_phone,
           new Date().toISOString(), // Fecha de creación
         ];
 
