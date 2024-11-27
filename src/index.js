@@ -18,6 +18,9 @@ const pool = new Pool({
   database: process.env.PG_DB || "",
   password: process.env.PG_PASSWORD || "",
   port: Number(process.env.PG_PORT) || 5432,
+  ssl: {
+    rejectUnauthorized: false,
+},
 });
 
 app.use(express.json());
