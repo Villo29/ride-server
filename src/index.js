@@ -41,6 +41,7 @@ io.on("connection", (socket) => {
           start_longitude,
           destination_latitude,
           destination_longitude,
+          passenger_name,
           passenger_phone,
           passenger_id,
           created_at
