@@ -74,27 +74,25 @@ io.on("connection", (socket) => {
   });
 
   // Evento para finalizar un viaje
+  // Evento para finalizar un viaje
   socket.on("endTrip", async (data) => {
     console.log("Viaje finalizado:", data);
 
-    if (!data.rideId) {
-      console.error("Error: rideId no proporcionado en endTrip.");
-      return;
-    }
+    const tripId = uuidv4(); // Generar un ID único para la operación final del viaje
 
     try {
-      // Guardar los datos del final del viaje en la tabla rideChofer
+      // Insertar los datos en la tabla rideChofer
       const query = `
-        INSERT INTO rideChofer (
-          ride_id,
-          driver_name,
-          driver_matricula,
-          completed_at
-        ) VALUES ($1, $2, $3, $4)
-      `;
+      INSERT INTO rideChofer (
+        ride_id,
+        driver_name,
+        driver_matricula,
+        completed_at
+      ) VALUES ($1, $2, $3, $4)
+    `;
 
       const values = [
-        data.rideId,
+        data.rideId, // rideId generado durante la solicitud del viaje
         data.driverName,
         data.driverMatricula,
         new Date().toISOString(),
@@ -102,13 +100,21 @@ io.on("connection", (socket) => {
 
       await pool.query(query, values);
       console.log("Datos del final del viaje guardados en rideChofer.");
+
+      // Emitir el evento a los clientes
+      io.emit("tripEnded", {
+        rideId: data.rideId,
+        driverName: data.driverName,
+        driverMatricula: data.driverMatricula,
+        completedAt: new Date().toISOString(),
+      });
     } catch (error) {
-      console.error("Error al guardar el final del viaje en rideChofer:", error.message);
+      console.error(
+        "Error al guardar el final del viaje en rideChofer:",
+        error.message
+      );
       return;
     }
-
-    // Emitir notificación al pasajero
-    io.to(data.passengerId).emit("tripEnded", data);
   });
 
   socket.on("disconnect", () => {
