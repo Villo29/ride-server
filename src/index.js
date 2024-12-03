@@ -13,7 +13,7 @@ const app = express();
 
 // Cargar certificados SSL
 const options = {
-  key: fs.readFileSync("/etc/letsencrypt/live/jasai.site/privkey.key"),  // Ruta de tu archivo de clave privada
+  key: fs.readFileSync("/etc/letsencrypt/live/jasai.site/privkey.pem"),  // Ruta de tu archivo de clave privada
   cert: fs.readFileSync("/etc/letsencrypt/live/jasai.site/cert.pem"),  // Ruta de tu archivo de certificado
   ca: fs.readFileSync("/etc/letsencrypt/live/jasai.site/chain.pem"),   // Opcional, si tienes un certificado intermedio
 };
