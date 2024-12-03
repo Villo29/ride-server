@@ -1,5 +1,6 @@
 const express = require("express");
-const http = require("http");
+const https = require("https"); // Usamos https en lugar de http
+const fs = require("fs"); // Para leer los archivos de certificado
 const { Server } = require("socket.io");
 const { Pool } = require("pg");
 const { v4: uuidv4 } = require("uuid");
@@ -9,13 +10,23 @@ const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 const app = express();
-const server = http.createServer(app);
+
+// Cargar certificados SSL
+const options = {
+  key: fs.readFileSync("/etc/letsencrypt/live/jasai.site/privkey.key"),  // Ruta de tu archivo de clave privada
+  cert: fs.readFileSync("/etc/letsencrypt/live/jasai.site/cert.pem"),  // Ruta de tu archivo de certificado
+  ca: fs.readFileSync("/etc/letsencrypt/live/jasai.site/chain.pem"),   // Opcional, si tienes un certificado intermedio
+};
+
+const server = https.createServer(options, app);  // Usamos https.createServer con los certificados
+
 const io = new Server(server, {
   cors: {
     origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
     methods: ["GET", "POST"],
   },
 });
+
 const port = process.env.PORT || 4000;
 
 // Seguridad adicional
