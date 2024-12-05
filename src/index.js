@@ -1,48 +1,14 @@
 const express = require("express");
-const https = require("https"); // Usamos https en lugar de http
-const fs = require("fs"); // Para leer los archivos de certificado
+const http = require("http");
 const { Server } = require("socket.io");
 const { Pool } = require("pg");
 const { v4: uuidv4 } = require("uuid");
-const helmet = require("helmet");
-const cors = require("cors");
-const rateLimit = require("express-rate-limit");
-require("dotenv").config();
+require("dotenv").config(); 
 
 const app = express();
-
-// Cargar certificados SSL
-const options = {
-  key: fs.readFileSync("/etc/letsencrypt/live/jasai.site/privkey.pem"),  // Ruta de tu archivo de clave privada
-  cert: fs.readFileSync("/etc/letsencrypt/live/jasai.site/cert.pem"),  // Ruta de tu archivo de certificado
-  ca: fs.readFileSync("/etc/letsencrypt/live/jasai.site/chain.pem"),   // Opcional, si tienes un certificado intermedio
-};
-
-const server = https.createServer(options, app);  // Usamos https.createServer con los certificados
-
-const io = new Server(server, {
-  cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
-    methods: ["GET", "POST"],
-  },
-});
-
+const server = http.createServer(app);
+const io = new Server(server);
 const port = process.env.PORT || 4000;
-
-// Seguridad adicional
-app.use(helmet());
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
-}));
-app.use(express.json());
-
-// Límite de tasa para prevenir abusos
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // 100 solicitudes por IP
-  message: "Demasiadas solicitudes, intenta de nuevo más tarde.",
-});
-app.use(limiter);
 
 // Configuración de la base de datos PostgreSQL
 const pool = new Pool({
@@ -52,31 +18,18 @@ const pool = new Pool({
   password: process.env.PG_PASSWORD || "",
   port: Number(process.env.PG_PORT) || 5432,
   ssl: {
-    rejectUnauthorized: process.env.PG_SSL === "true",
-  },
+    rejectUnauthorized: false,
+},
 });
+
+app.use(express.json());
 
 io.on("connection", (socket) => {
   console.log("New client connected");
 
-  // Validación de datos
-  const validateRideData = (data) => {
-    if (!data || typeof data !== "object") return false;
-    const requiredFields = [
-      "passengerName",
-      "phoneNumber",
-      "passengerId",
-      "start",
-      "destination",
-    ];
-    return requiredFields.every((field) => data[field]);
-  };
-
   // Manejar solicitud de viaje
   socket.on("requestRide", async (data) => {
-    if (!validateRideData(data)) {
-      return socket.emit("error", "Datos de solicitud de viaje inválidos");
-    }
+    console.log("Ride requested:", data);
 
     const rideId = uuidv4();
     const rideData = {
@@ -104,13 +57,14 @@ io.on("connection", (socket) => {
       io.emit("newRideRequest", rideData);
       console.log("Nuevo viaje creado y guardado en la DB:", rideData);
     } catch (error) {
-      console.error("Error guardando en la DB:", error.message);
-      socket.emit("error", "Error guardando la solicitud de viaje");
+      console.error("Error guardando en la DB:", error);
     }
   });
 
   // Manejar aceptación de viaje
   socket.on("acceptRide", async (data) => {
+    console.log("Ride accepted:", data);
+
     try {
       await pool.query(
         `INSERT INTO accepted_rides
@@ -130,8 +84,7 @@ io.on("connection", (socket) => {
       io.emit("rideAccepted", data);
       console.log("Ride aceptado y guardado en la DB:", data);
     } catch (error) {
-      console.error("Error guardando aceptación en la DB:", error.message);
-      socket.emit("error", "Error aceptando el viaje");
+      console.error("Error guardando aceptación en la DB:", error);
     }
   });
 
